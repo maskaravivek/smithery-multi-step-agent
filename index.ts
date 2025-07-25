@@ -7,9 +7,6 @@ import { ContentGenerationAgent } from './agent.js';
 const EXA_SEARCH_MCP_URL = 'https://server.smithery.ai/exa/mcp';
 const DEEPL_TRANSLATE_MCP_URL = 'https://server.smithery.ai/@DeepLcom/deepl-mcp-server/mcp';
 
-/**
- * Main agent workflow
- */
 async function main(): Promise<void> {
     const rl = createInterface({
         input: process.stdin,
@@ -23,14 +20,14 @@ async function main(): Promise<void> {
     };
 
     try {
-        console.log('🚀 Smithery 3-Step Content Generation Agent');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('Smithery 3-Step Content Generation Agent');
+        console.log('==========================================');
 
         // Get user input
         const query = await question('Enter your research query: ');
         const targetLang = await question('Enter target language (e.g., es, fr, de) [default: es]: ') || 'es';
 
-        console.log('\n🚀 Initializing agent...');
+        console.log('\nInitializing agent...');
         const agent = new ContentGenerationAgent(EXA_SEARCH_MCP_URL, DEEPL_TRANSLATE_MCP_URL);
         
         await agent.initialize();
@@ -39,12 +36,12 @@ async function main(): Promise<void> {
         const result = await agent.executeWorkflow(query, targetLang);
 
         // Display results
-        console.log('\n📋 WORKFLOW RESULTS:');
-        console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.log('\nWORKFLOW RESULTS:');
+        console.log('==================');
         
         if (result.success) {
-            console.log('✅ Status: SUCCESS');
-            console.log('\n📊 Final Translation:');
+            console.log('Status: SUCCESS');
+            console.log('\nFinal Translation:');
             
             // Handle different response formats
             const translation = result.data?.translation;
@@ -67,17 +64,17 @@ async function main(): Promise<void> {
             }
 
             if (result.data?.translation?.fallback_applied) {
-                console.log('\n⚠️ Note: Translation fallback was applied');
+                console.log('\nNote: Translation fallback was applied');
             }
         } else {
-            console.log('❌ Status: FAILED');
+            console.log('Status: FAILED');
             console.log(`Error in ${result.step}: ${result.error}`);
         }
 
         await agent.cleanup();
 
     } catch (error) {
-        console.error('❌ Agent workflow failed:', error);
+        console.error('Agent workflow failed:', error);
         process.exit(1);
     } finally {
         rl.close();

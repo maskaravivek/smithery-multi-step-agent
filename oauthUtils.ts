@@ -25,11 +25,9 @@ export async function findAvailablePort(startPort: number): Promise<number> {
 }
 
 export async function openBrowser(url: string): Promise<void> {
-    console.log(`🌐 Opening browser for authorization: ${url}`);
     const command = `open "${url}"`;
     exec(command, (error) => {
         if (error) {
-            console.error(`Failed to open browser: ${error.message}`);
             console.log(`Please manually open: ${url}`);
         }
     });
@@ -43,7 +41,7 @@ export async function waitForOAuthCallback(callbackPort: number): Promise<string
                 res.end();
                 return;
             }
-            console.log(`📥 Received callback: ${req.url}`);
+            
             const parsedUrl = new URL(req.url || '', 'http://localhost');
             const code = parsedUrl.searchParams.get('code');
             const error = parsedUrl.searchParams.get('error');
@@ -59,7 +57,6 @@ export async function waitForOAuthCallback(callbackPort: number): Promise<string
             };
             
             if (code) {
-                console.log(`✅ Authorization code received: ${code?.substring(0, 10)}...`);
                 res.writeHead(200, { 'Content-Type': 'text/html' });
                 res.end(`
                     <html>
@@ -73,7 +70,6 @@ export async function waitForOAuthCallback(callbackPort: number): Promise<string
                 resolve(code);
                 setTimeout(closeServer, 1000);
             } else if (error) {
-                console.log(`❌ Authorization error: ${error}`);
                 res.writeHead(400, { 'Content-Type': 'text/html' });
                 res.end(`
                     <html>
@@ -86,7 +82,6 @@ export async function waitForOAuthCallback(callbackPort: number): Promise<string
                 setTimeout(closeServer, 1000);
                 reject(new Error(`OAuth authorization failed: ${error}`));
             } else {
-                console.log(`❌ No authorization code or error in callback`);
                 res.writeHead(400);
                 res.end('Bad request');
                 setTimeout(closeServer, 1000);
@@ -94,21 +89,14 @@ export async function waitForOAuthCallback(callbackPort: number): Promise<string
             }
         });
 
-        // Handle server errors
         server.on('error', (err: any) => {
             if (err.code === 'EADDRINUSE') {
-                console.log(`⚠️ Port ${callbackPort} is in use, trying port ${callbackPort + 1}`);
-                // Try the next port
-                server.listen(callbackPort + 1, () => {
-                    console.log(`OAuth callback server started on http://localhost:${callbackPort + 1}`);
-                });
+                server.listen(callbackPort + 1);
             } else {
                 reject(err);
             }
         });
 
-        server.listen(callbackPort, () => {
-            console.log(`OAuth callback server started on http://localhost:${callbackPort}`);
-        });
+        server.listen(callbackPort);
     });
 }
