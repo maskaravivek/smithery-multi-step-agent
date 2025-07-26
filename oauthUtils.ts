@@ -1,28 +1,6 @@
 import { exec } from 'node:child_process';
 import { createServer } from 'node:http';
 import { URL } from 'node:url';
-import * as net from 'node:net';
-
-export async function findAvailablePort(startPort: number): Promise<number> {
-    return new Promise((resolve, reject) => {
-        const server = net.createServer();
-        
-        server.listen(startPort, () => {
-            const port = (server.address() as net.AddressInfo)?.port;
-            server.close(() => {
-                resolve(port);
-            });
-        });
-        
-        server.on('error', (err: any) => {
-            if (err.code === 'EADDRINUSE') {
-                resolve(findAvailablePort(startPort + 1));
-            } else {
-                reject(err);
-            }
-        });
-    });
-}
 
 export async function openBrowser(url: string): Promise<void> {
     const command = `open "${url}"`;
@@ -90,11 +68,7 @@ export async function waitForOAuthCallback(callbackPort: number): Promise<string
         });
 
         server.on('error', (err: any) => {
-            if (err.code === 'EADDRINUSE') {
-                server.listen(callbackPort + 1);
-            } else {
-                reject(err);
-            }
+            reject(err);
         });
 
         server.listen(callbackPort);

@@ -6,7 +6,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { InMemoryOAuthClientProvider } from './oauthProvider.js';
-import { openBrowser, waitForOAuthCallback, findAvailablePort } from './oauthUtils.js';
+import { openBrowser, waitForOAuthCallback } from './oauthUtils.js';
 
 /**
  * MCP client with OAuth authentication
@@ -40,7 +40,7 @@ export class InteractiveOAuthClient {
      * Connect to the MCP server
      */
     async connect(): Promise<void> {
-        const callbackPort = await findAvailablePort(this.startingPort);
+        const callbackPort = this.startingPort;
         const callbackUrl = `http://localhost:${callbackPort}/callback`;
 
         const clientMetadata = {

@@ -27,12 +27,12 @@ export class ContentGenerationAgent {
     private deepLClient: InteractiveOAuthClient;
 
     constructor(
-        private exaSearchUrl: string,
-        private deepLTranslateUrl: string
+        private _exaSearchUrl: string,
+        private _deepLTranslateUrl: string
     ) {
         // Use different callback ports for each client to avoid OAuth conflicts
-        this.exaClient = new InteractiveOAuthClient(exaSearchUrl, 8090);
-        this.deepLClient = new InteractiveOAuthClient(deepLTranslateUrl, 8091);
+        this.exaClient = new InteractiveOAuthClient(this._exaSearchUrl, 8090);
+        this.deepLClient = new InteractiveOAuthClient(this._deepLTranslateUrl, 8091);
     }
 
     /**
