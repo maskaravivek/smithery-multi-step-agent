@@ -87,6 +87,6 @@ export class InteractiveOAuthClient {
     }
 
     close(): void {
-        // Client doesn't have a close method in the current implementation
+        // TODO: Implement proper cleanup if needed
     }
 }

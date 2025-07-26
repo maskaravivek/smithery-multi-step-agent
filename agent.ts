@@ -1,19 +1,5 @@
 import { InteractiveOAuthClient } from './mcpClient.js';
 
-/**
- * Smithery Orchestration Brief:
- * 
- * Smithery orchestrates multi-step workflows by chaining tool calls via MCP (Model Context Protocol) servers.
- * Each step (tool) is invoked independently, and results are passed to the next step, allowing for:
- * - Robust, testable automation
- * - Fallback-enabled workflows
- * - Independent component scaling
- * - Clear separation of concerns
- * 
- * The agent pattern follows: Input → Tool1 → Tool2 → ... → Output
- * With each step being a discrete, composable unit.
- */
-
 export interface AgentResult {
     success: boolean;
     data?: any;
@@ -30,7 +16,6 @@ export class ContentGenerationAgent {
         private _exaSearchUrl: string,
         private _deepLTranslateUrl: string
     ) {
-        // Use different callback ports for each client to avoid OAuth conflicts
         this.exaClient = new InteractiveOAuthClient(this._exaSearchUrl, 8090);
         this.deepLClient = new InteractiveOAuthClient(this._deepLTranslateUrl, 8091);
     }
@@ -50,9 +35,9 @@ export class ContentGenerationAgent {
      */
     async research(query: string): Promise<AgentResult> {
         console.log(`Step 1: Research - "${query}"`);
-        
+
         try {
-            const result = await this.exaClient.callToolDirect('web_search_exa', { 
+            const result = await this.exaClient.callToolDirect('web_search_exa', {
                 query,
                 num_results: 5
             });
@@ -77,7 +62,7 @@ export class ContentGenerationAgent {
      */
     async draft(researchData: any): Promise<AgentResult> {
         console.log('Step 2: Draft - Generating content...');
-        
+
         try {
             // Extract meaningful content from research results
             let researchSummary = '';
@@ -89,7 +74,6 @@ export class ContentGenerationAgent {
                 });
             }
 
-            // For demo purposes, create a simple draft
             const draft = `
 # Research Summary
 
@@ -126,13 +110,13 @@ The research provides valuable insights that can inform decision-making and stra
      */
     async translate(text: string, targetLanguage: string = 'es'): Promise<AgentResult> {
         console.log(`Step 3: Translate to ${targetLanguage}...`);
-        
+
         try {
             const result = await this.deepLClient.callToolDirect('translate-text', {
                 text,
                 targetLang: targetLanguage
             });
-            
+
             return {
                 success: true,
                 data: result,
@@ -140,8 +124,6 @@ The research provides valuable insights that can inform decision-making and stra
             };
         } catch (error) {
             console.error('Translation step failed, applying fallback...', error);
-            
-            // Fallback: return original text with warning
             const fallbackResult = {
                 original_text: text,
                 translated_text: text,
@@ -151,7 +133,7 @@ The research provides valuable insights that can inform decision-making and stra
             };
 
             return {
-                success: true, // Still consider it successful due to fallback
+                success: true,
                 data: fallbackResult,
                 step: 'translate',
                 error: `Translation failed but fallback applied: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -182,7 +164,7 @@ The research provides valuable insights that can inform decision-making and stra
 
             // Step 3: Translate
             const translateResult = await this.translate(draftResult.data as string, targetLanguage);
-            
+
             console.log('Workflow completed successfully!');
 
             return {

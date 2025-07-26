@@ -35,7 +35,6 @@ async function main(): Promise<void> {
         // Execute the complete workflow
         const result = await agent.executeWorkflow(query, targetLang);
 
-        // Display results
         console.log('\nWORKFLOW RESULTS:');
         console.log('==================');
         
@@ -43,23 +42,18 @@ async function main(): Promise<void> {
             console.log('Status: SUCCESS');
             console.log('\nFinal Translation:');
             
-            // Handle different response formats
             const translation = result.data?.translation;
             if (translation?.content) {
-                // MCP content format
                 translation.content.forEach((item: any) => {
                     if (item.type === 'text') {
                         console.log(item.text);
                     }
                 });
             } else if (translation?.translated_text) {
-                // Direct translated_text field
                 console.log(translation.translated_text);
             } else if (translation?.success && translation?.data) {
-                // Nested success/data format
                 console.log(translation.data);
             } else {
-                // Fallback: show full translation object
                 console.log('Translation response:', JSON.stringify(translation, null, 2));
             }
 
