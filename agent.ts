@@ -1,31 +1,43 @@
 import { InteractiveOAuthClient } from './mcpClient.js';
+import { callWithRetry } from './utils.js';
+import OpenAI from 'openai';
 
 export interface AgentResult {
     success: boolean;
     data?: any;
     error?: string;
     step?: string;
+    metadata?: any;
 }
 
 export class ContentGenerationAgent {
     // Initialize both clients with different ports to avoid conflicts
     private exaClient: InteractiveOAuthClient;
+    private jigsawClient: InteractiveOAuthClient;
     private deepLClient: InteractiveOAuthClient;
+    private openai: OpenAI;
 
     constructor(
         private _exaSearchUrl: string,
-        private _deepLTranslateUrl: string
+        private _jigsawSearchUrl: string,
+        private _deepLTranslateUrl: string,
     ) {
         this.exaClient = new InteractiveOAuthClient(this._exaSearchUrl, 8090);
-        this.deepLClient = new InteractiveOAuthClient(this._deepLTranslateUrl, 8091);
+        this.jigsawClient = new InteractiveOAuthClient(this._jigsawSearchUrl, 8091);
+        this.deepLClient = new InteractiveOAuthClient(this._deepLTranslateUrl, 8092);
+
+        this.openai = new OpenAI({
+            apiKey: process.env.OPENAI_API_KEY
+        });
     }
 
     /**
-     * Initialize connections to both MCP servers
+     * Initialize connections to all MCP servers
      */
     async initialize(): Promise<void> {
         console.log('Initializing agent connections...');
         await this.exaClient.connect();
+        await this.jigsawClient.connect();
         await this.deepLClient.connect();
         console.log('Agent initialization complete');
     }
@@ -37,31 +49,53 @@ export class ContentGenerationAgent {
         console.log(`Step 1: Research - "${query}"`);
 
         try {
-            const result = await this.exaClient.callToolDirect('web_search_exa', {
-                query,
-                num_results: 5
-            });
+            const result = await callWithRetry(
+                () => this.exaClient.callToolDirect('web_search_exa', {
+                    query,
+                    num_results: 5
+                }),
+                3,
+                1000
+            );
 
             return {
                 success: true,
                 data: result,
                 step: 'research'
             };
-        } catch (error) {
+        } catch (error: any) {
             console.error('Research step failed:', error);
+            let errorType: 'transient' | 'permanent' = 'permanent';
+            let retryable = false;
+
+            if (error?.name === 'FetchError' || error?.message?.includes('timeout')) {
+                errorType = 'transient';
+                retryable = true;
+            } else if (error?.message?.includes('token expired')) {
+                errorType = 'transient';
+                retryable = true;
+            } else if (error?.message?.includes('invalid token') || error?.message?.includes('invalid payload')) {
+                errorType = 'permanent';
+                retryable = false;
+            }
+
             return {
                 success: false,
                 error: error instanceof Error ? error.message : 'Unknown research error',
-                step: 'research'
+                step: 'research',
+                metadata: {
+                    error_type: errorType,
+                    retryable
+                }
             };
         }
     }
 
     /**
-     * Step 2: Draft content using LLM (simulated for demo)
+     * Step 2: Draft content using OpenAI based on research data
      */
     async draft(researchData: any): Promise<AgentResult> {
-        console.log('Step 2: Draft - Generating content...');
+        console.log('Step 2: Draft - Generating content with OpenAI...');
 
         try {
             // Extract meaningful content from research results
@@ -74,21 +108,43 @@ export class ContentGenerationAgent {
                 });
             }
 
-            const draft = `
-# Research Summary
+            // If no research data available, provide a fallback
+            if (!researchSummary.trim()) {
+                researchSummary = 'No specific research data available for analysis.';
+            }
 
-Based on the latest research findings, here are the key insights:
+            // Create a comprehensive prompt for OpenAI
+            const prompt = `Based on the following research data, please create a well-structured, informative article. The article should:
 
+1. Summarize the key findings from the research
+2. Identify the most important insights and trends
+3. Provide analysis and context
+4. Include actionable takeaways or recommendations
+5. Be written in a professional, engaging tone
+
+Research Data:
 ${researchSummary}
 
-## Key Points:
-- Research indicates important developments in the field
-- Multiple sources confirm the growing significance
-- Experts recommend staying informed about these trends
+Please format the response as a markdown article with appropriate headings, bullet points, and structure.`;
 
-## Conclusion:
-The research provides valuable insights that can inform decision-making and strategy development.
-            `.trim();
+            // Call OpenAI to generate content
+            const completion = await this.openai.chat.completions.create({
+                model: "gpt-3.5-turbo",
+                messages: [
+                    {
+                        role: "system",
+                        content: "You are a professional content writer and analyst. Create well-structured, insightful articles based on research data."
+                    },
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ],
+                max_tokens: 1500,
+                temperature: 0.7
+            });
+
+            const draft = completion.choices[0]?.message?.content || 'Failed to generate content';
 
             return {
                 success: true,
@@ -106,12 +162,14 @@ The research provides valuable insights that can inform decision-making and stra
     }
 
     /**
-     * Step 3: Translate using MCP translation tool (with fallback)
+     * Step 3: Translate using MCP translation tools (DeepL primary, Jigsaw fallback)
      */
     async translate(text: string, targetLanguage: string = 'es'): Promise<AgentResult> {
         console.log(`Step 3: Translate to ${targetLanguage}...`);
 
         try {
+            // Try DeepL first
+            console.log('Attempting translation with DeepL...');
             const result = await this.deepLClient.callToolDirect('translate-text', {
                 text,
                 targetLang: targetLanguage
@@ -122,22 +180,34 @@ The research provides valuable insights that can inform decision-making and stra
                 data: result,
                 step: 'translate'
             };
-        } catch (error) {
-            console.error('Translation step failed, applying fallback...', error);
-            const fallbackResult = {
-                original_text: text,
-                translated_text: text,
-                warning: 'Translation failed, returning original text',
-                target_language: targetLanguage,
-                fallback_applied: true
-            };
+        } catch (deepLError) {
+            console.error('DeepL translation failed, trying Jigsaw fallback...', deepLError);
 
-            return {
-                success: true,
-                data: fallbackResult,
-                step: 'translate',
-                error: `Translation failed but fallback applied: ${error instanceof Error ? error.message : 'Unknown error'}`
-            };
+            try {
+                // Fallback to Jigsaw translation
+                console.log('Attempting translation with Jigsaw...');
+                const jigsawResult = await this.jigsawClient.callToolDirect('text-translation', {
+                    text,
+                    target_language: targetLanguage
+                });
+
+                return {
+                    success: true,
+                    data: {
+                        ...jigsawResult,
+                        fallback_used: 'jigsaw',
+                        primary_error: deepLError instanceof Error ? deepLError.message : 'DeepL translation failed'
+                    },
+                    step: 'translate'
+                };
+            } catch (jigsawError) {
+                console.error('Jigsaw translation also failed:', jigsawError);
+                return {
+                    success: false,
+                    error: jigsawError instanceof Error ? jigsawError.message : 'Unknown translation error',
+                    step: 'translate'
+                };
+            }
         }
     }
 
@@ -195,6 +265,7 @@ The research provides valuable insights that can inform decision-making and stra
      */
     async cleanup(): Promise<void> {
         this.exaClient.close();
+        this.jigsawClient.close();
         this.deepLClient.close();
     }
 }

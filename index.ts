@@ -3,9 +3,9 @@
 import { createInterface } from 'node:readline';
 import { ContentGenerationAgent } from './agent.js';
 
-// Configuration
 const EXA_SEARCH_MCP_URL = 'https://server.smithery.ai/exa/mcp';
 const DEEPL_TRANSLATE_MCP_URL = 'https://server.smithery.ai/@DeepLcom/deepl-mcp-server/mcp';
+const JIGSAW_TRANSLATE_MCP_URL = 'https://server.smithery.ai/@JigsawStack/translation/mcp';
 
 async function main(): Promise<void> {
     const rl = createInterface({
@@ -20,63 +20,33 @@ async function main(): Promise<void> {
     };
 
     try {
-        console.log('Smithery 3-Step Content Generation Agent');
-        console.log('==========================================');
-
-        // Get user input
         const query = await question('Enter your research query: ');
         const targetLang = await question('Enter target language (e.g., es, fr, de) [default: es]: ') || 'es';
 
-        console.log('\nInitializing agent...');
-        const agent = new ContentGenerationAgent(EXA_SEARCH_MCP_URL, DEEPL_TRANSLATE_MCP_URL);
-        
-        await agent.initialize();
+        const agent = new ContentGenerationAgent(EXA_SEARCH_MCP_URL,
+            JIGSAW_TRANSLATE_MCP_URL,
+            DEEPL_TRANSLATE_MCP_URL);
 
-        // Execute the complete workflow
+        await agent.initialize();
         const result = await agent.executeWorkflow(query, targetLang);
 
-        console.log('\nWORKFLOW RESULTS:');
-        console.log('==================');
-        
         if (result.success) {
-            console.log('Status: SUCCESS');
-            console.log('\nFinal Translation:');
-            
-            const translation = result.data?.translation;
-            if (translation?.content) {
-                translation.content.forEach((item: any) => {
-                    if (item.type === 'text') {
-                        console.log(item.text);
-                    }
-                });
-            } else if (translation?.translated_text) {
-                console.log(translation.translated_text);
-            } else if (translation?.success && translation?.data) {
-                console.log(translation.data);
-            } else {
-                console.log('Translation response:', JSON.stringify(translation, null, 2));
-            }
-
-            if (result.data?.translation?.fallback_applied) {
-                console.log('\nNote: Translation fallback was applied');
-            }
+            console.log(JSON.stringify(result.data, null, 2));
         } else {
-            console.log('Status: FAILED');
-            console.log(`Error in ${result.step}: ${result.error}`);
+            console.error(`Error: ${result.error}`);
         }
 
         await agent.cleanup();
 
     } catch (error) {
-        console.error('Agent workflow failed:', error);
+        console.error('Error:', error);
         process.exit(1);
     } finally {
         rl.close();
     }
 }
 
-// Run the agent
 main().catch((error) => {
-    console.error('Unhandled error:', error);
+    console.error('Error:', error);
     process.exit(1);
 });
