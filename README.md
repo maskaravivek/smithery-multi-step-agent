@@ -23,3 +23,5 @@ npm run build && npm run start
 ```
 
 Once the agent starts, enter a research topic (eg. "AWS CDK") and set an output language (eg. `es`) of your choice.
+
+> Note: You will be prompted to authenticate to the different MCP servers before the agent continues with the execution.
