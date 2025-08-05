@@ -49,6 +49,7 @@ export class ContentGenerationAgent {
         console.log(`Step 1: Research - "${query}"`);
 
         try {
+            console.log('Calling EXA search tool for research...');
             const result = await callWithRetry(
                 () => this.exaClient.callToolDirect('web_search_exa', {
                     query,
